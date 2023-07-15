@@ -14,7 +14,7 @@ from dateutil.parser import parse
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from settings import API_URL, BASE_DATE, BASE_KEY, FOLDER_PATH_BASE, YESTERDAY
+from settings import API_URL, BASE_DATE, BASE_KEY, YESTERDAY
 
 # Root Logger
 logger = logging.getLogger()
@@ -96,6 +96,7 @@ try:
     # Read the max_retries and retry_delay values from the config file
     max_retries = config.getint("Default", "max_retries")
     retry_delay = config.getint("Default", "retry_delay")
+    folder_path_base = config.get("Default", 'folder_path_base')
 
 except (FileNotFoundError, configparser.Error):
     # Handle the case where the config file is not found or there is an error reading it
@@ -105,6 +106,13 @@ except (FileNotFoundError, configparser.Error):
     # Set default values or fallback behavior here
     max_retries = 3  # Set a default value for max_retries
     retry_delay = 1  # Set a default value for retry_delay
+    # Get the directory path of the script
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    # Set the default folder path to save files
+    default_folder_path = os.path.join(script_dir)
+    # Make sure the folder exists
+    os.makedirs(default_folder_path, exist_ok=True)
+    folder_path_base = default_folder_path +"/"
 
 
 def count_business_days(start_date, end_date):
@@ -149,8 +157,7 @@ date_fn = str(date_variable).replace("-", "")
 # Algorithm to compute for the key of each file
 key = BASE_KEY + count_business_days(BASE_DATE, date_variable) - 1
 # Folder path algorithm
-FOLDER_PATH = FOLDER_PATH_BASE + "{date}/".format(date=date_variable)
-
+folder_path = str(folder_path_base).replace("\"","") + "{date}/".format(date=date_variable)
 
 # Function to download the files from the URL with a set amount of retries if it fails to download
 def download_files(file_name, url, folder_path, max_retries, retry_delay):
@@ -207,17 +214,17 @@ tick_data_structure_fn = "TickData_structure.dat"
 trade_cancellation_fn = "TC_{date_fn}.txt".format(date_fn=date_fn)
 trade_cancellation_data_structure_fn = "TC_structure.dat"
 
-download_files(tick_fn, tick, FOLDER_PATH, max_retries, retry_delay)
+download_files(tick_fn, tick, folder_path, max_retries, retry_delay)
 download_files(
-    tick_data_structure_fn, tick_data_structure, FOLDER_PATH, max_retries, retry_delay
+    tick_data_structure_fn, tick_data_structure, folder_path, max_retries, retry_delay
 )
 download_files(
-    trade_cancellation_fn, trade_cancellation, FOLDER_PATH, max_retries, retry_delay
+    trade_cancellation_fn, trade_cancellation, folder_path, max_retries, retry_delay
 )
 download_files(
     trade_cancellation_data_structure_fn,
     trade_cancellation_data_structure,
-    FOLDER_PATH,
+    folder_path,
     max_retries,
     retry_delay,
 )
