@@ -1,12 +1,11 @@
 import argparse
 import configparser
-import datetime
 import logging
 import logging.handlers
 import os
 import sys
 import time
-from datetime import timedelta
+from datetime import date, timedelta
 from urllib.request import urlretrieve
 
 import requests
@@ -14,7 +13,7 @@ from dateutil.parser import parse
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from settings import API_URL, BASE_DATE, BASE_KEY, YESTERDAY
+from settings import API_URL, BASE_DATE, BASE_KEY
 
 # Root Logger
 logger = logging.getLogger()
@@ -66,29 +65,42 @@ config = configparser.ConfigParser()
 config_file = "config.ini"
 
 
-# Function to ensure that the date is valid if ran with default settings
+# Function to ensure that the date is valid if ran with manually picking the date
 def weekday_checker(date_variable):
+    if date_variable.weekday() < 5:  # Monday to Friday (0 to 4)
+        return date_variable
+    else:
+        logging.error(
+            "Today is a weekend, there is no Data to download from the day before"
+        )
+        sys.exit(1)
+
+
+# Function to ensure that the date is valid if ran with default settings
+def weekday_checker_default(date_variable):
     if date_variable.weekday() == 0:  # Monday to Friday (0 to 4)
         logging.info(
             """Today is Monday, there is no Data to download from the day before,
             the program will download last friday's files"""
         )
-        return date_variable - datetime.timedelta(days=2)  # If monday return friday
-    elif 0 < date_variable.weekday() < 6:
-        return date_variable
+        return date_variable - timedelta(days=2)  # If monday return friday
+    elif 0 < date_variable.weekday() < 5:
+        return date_variable - timedelta(
+            days=1
+        )  # Returns the yesterday if not the weekend
     else:
         logging.debug(
-            "Today is Sunday, there is no Data to download from the day before"
+            "Today is a weekend, there is no Data to download from the day before"
         )
         sys.exit(1)
 
 
 # Manually download the files on a specific date
 if args.date:
-    date_variable = args.date.date()
+    date_variable = weekday_checker(args.date.date())
 else:
-    date_variable = weekday_checker(
-        YESTERDAY
+    date_variable = weekday_checker_default(
+        date.today()
     )  # Downloads the file yesterday AKA Default settings
 
 try:
@@ -96,7 +108,7 @@ try:
     # Read the max_retries and retry_delay values from the config file
     max_retries = config.getint("Default", "max_retries")
     retry_delay = config.getint("Default", "retry_delay")
-    folder_path_base = config.get("Default", 'folder_path_base')
+    folder_path_base = config.get("Default", "folder_path_base")
 
 except (FileNotFoundError, configparser.Error):
     # Handle the case where the config file is not found or there is an error reading it
@@ -112,7 +124,7 @@ except (FileNotFoundError, configparser.Error):
     default_folder_path = os.path.join(script_dir)
     # Make sure the folder exists
     os.makedirs(default_folder_path, exist_ok=True)
-    folder_path_base = default_folder_path +"/"
+    folder_path_base = default_folder_path + "/"
 
 
 def count_business_days(start_date, end_date):
@@ -132,18 +144,22 @@ def count_business_days(start_date, end_date):
 
     # Check if end_date is earlier than start_date
     if end_date < start_date:
-        return (end_date - start_date).days
+        while current_date > end_date:
+            if current_date.weekday() < 5:  # Monday to Friday
+                count += 1
+            current_date -= timedelta(days=1)
+        return count * -1
 
     # Check if current_date is equal to end_date
     elif current_date == end_date:
         return 0
 
     # Check if end_date is in the future
-    elif end_date >= datetime.date.today():
+    elif end_date >= date.today():
         logging.error("The date you wish to download is too far into the future")
 
     # Loop through each date from start_date to end_date
-    while current_date <= end_date:
+    while current_date < end_date:
         # Increment count if current_date is a weekday (Monday to Friday)
         if current_date.weekday() < 5:
             count += 1
@@ -155,9 +171,12 @@ def count_business_days(start_date, end_date):
 # Take out the hyphens from the date for the file name
 date_fn = str(date_variable).replace("-", "")
 # Algorithm to compute for the key of each file
-key = BASE_KEY + count_business_days(BASE_DATE, date_variable) - 1
+key = BASE_KEY + count_business_days(BASE_DATE, date_variable)
 # Folder path algorithm
-folder_path = str(folder_path_base).replace("\"","") + "{date}/".format(date=date_variable)
+folder_path = str(folder_path_base).replace('"', "") + "{date}/".format(
+    date=date_variable
+)
+
 
 # Function to download the files from the URL with a set amount of retries if it fails to download
 def download_files(file_name, url, folder_path, max_retries, retry_delay):
