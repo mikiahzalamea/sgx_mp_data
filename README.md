@@ -2,10 +2,10 @@
 
 Downloads the following files from the SGX Website:
 
-WEBPXTICK_DT-*.zip
-TickData_structure.dat
-TC_*.txt
-TC_structure.dat
+WEBPXTICK_DT-*.zip 
+TickData_structure.dat 
+TC_*.txt 
+TC_structure.dat 
 
 ## Description
 
@@ -44,6 +44,6 @@ ex. "python dtl_mp_data.py 2023-06-28"
 
 ## Contact
 
-Mikiah Matthew T. Zalamea 
-+(639)9985543986
-mikiah.zalamea@gmail.com
+Mikiah Matthew T. Zalamea  
++(639)9985543986 
+mikiah.zalamea@gmail.com 
